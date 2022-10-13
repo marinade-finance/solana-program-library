@@ -2004,7 +2004,7 @@ impl GovernanceProgramTest {
                 &[
                     ComputeBudgetInstruction::set_compute_unit_limit(1_000_000u32),
                     ComputeBudgetInstruction::set_compute_unit_price(1u64),
-                    create_proposal_transaction
+                    create_proposal_transaction,
                 ],
                 Some(&[governance_authority]),
             )
@@ -2091,7 +2091,9 @@ impl GovernanceProgramTest {
             &self.program_id,
             &proposal_cookie.address,
             &token_owner_record_cookie.address,
-            &token_owner_record_cookie.token_owner.pubkey(),
+            &token_owner_record_cookie
+                .get_governance_authority()
+                .pubkey(),
             &self.bench.payer.pubkey(),
             &signatory.pubkey(),
         );
@@ -2099,7 +2101,7 @@ impl GovernanceProgramTest {
         self.bench
             .process_transaction(
                 &[add_signatory_ix],
-                Some(&[&token_owner_record_cookie.token_owner]),
+                Some(&[token_owner_record_cookie.get_governance_authority()]),
             )
             .await?;
 
@@ -2137,7 +2139,9 @@ impl GovernanceProgramTest {
             &self.program_id,
             &proposal_cookie.address,
             &token_owner_record_cookie.address,
-            &token_owner_record_cookie.token_owner.pubkey(),
+            &token_owner_record_cookie
+                .get_governance_authority()
+                .pubkey(),
             &signatory_record_cookie.account.signatory,
             &token_owner_record_cookie.token_owner.pubkey(),
         );
@@ -2145,7 +2149,7 @@ impl GovernanceProgramTest {
         self.bench
             .process_transaction(
                 &[remove_signatory_ix],
-                Some(&[&token_owner_record_cookie.token_owner]),
+                Some(&[token_owner_record_cookie.get_governance_authority()]),
             )
             .await?;
 
@@ -2321,13 +2325,15 @@ impl GovernanceProgramTest {
             &proposal_cookie.account.governance,
             &proposal_cookie.address,
             &token_owner_record_cookie.address,
-            &token_owner_record_cookie.token_owner.pubkey(),
+            &token_owner_record_cookie
+                .get_governance_authority()
+                .pubkey(),
         );
 
         self.bench
             .process_transaction(
                 &[cancel_proposal_transaction],
-                Some(&[&token_owner_record_cookie.token_owner]),
+                Some(&[token_owner_record_cookie.get_governance_authority()]),
             )
             .await?;
 
@@ -2395,7 +2401,9 @@ impl GovernanceProgramTest {
             &proposal_cookie.address,
             &proposal_cookie.account.token_owner_record,
             &token_owner_record_cookie.address,
-            &token_owner_record_cookie.token_owner.pubkey(),
+            &token_owner_record_cookie
+                .get_governance_authority()
+                .pubkey(),
             &token_owner_record_cookie.account.governing_token_mint,
             &self.bench.payer.pubkey(),
             voter_weight_record,
@@ -2405,7 +2413,7 @@ impl GovernanceProgramTest {
 
         instruction_override(&mut cast_vote_ix);
 
-        let default_signers = &[&token_owner_record_cookie.token_owner];
+        let default_signers = &[token_owner_record_cookie.get_governance_authority()];
         let signers = signers_override.unwrap_or(default_signers);
 
         self.bench
@@ -2413,9 +2421,9 @@ impl GovernanceProgramTest {
                 &[
                     ComputeBudgetInstruction::set_compute_unit_limit(1_000_000u32),
                     ComputeBudgetInstruction::set_compute_unit_price(1u64),
-                    cast_vote_ix
+                    cast_vote_ix,
                 ],
-                Some(signers)
+                Some(signers),
             )
             .await?;
 
@@ -2702,7 +2710,9 @@ impl GovernanceProgramTest {
             &proposal_cookie.account.governance,
             &proposal_cookie.address,
             &token_owner_record_cookie.address,
-            &token_owner_record_cookie.token_owner.pubkey(),
+            &token_owner_record_cookie
+                .get_governance_authority()
+                .pubkey(),
             &self.bench.payer.pubkey(),
             option_index,
             transaction_index,
@@ -2713,7 +2723,7 @@ impl GovernanceProgramTest {
         self.bench
             .process_transaction(
                 &[insert_transaction_ix],
-                Some(&[&token_owner_record_cookie.token_owner]),
+                Some(&[token_owner_record_cookie.get_governance_authority()]),
             )
             .await?;
 
@@ -2766,7 +2776,9 @@ impl GovernanceProgramTest {
             &self.program_id,
             &proposal_cookie.address,
             &token_owner_record_cookie.address,
-            &token_owner_record_cookie.token_owner.pubkey(),
+            &token_owner_record_cookie
+                .get_governance_authority()
+                .pubkey(),
             &proposal_transaction_cookie.address,
             &self.bench.payer.pubkey(),
         );
@@ -2774,7 +2786,7 @@ impl GovernanceProgramTest {
         self.bench
             .process_transaction(
                 &[remove_transaction_ix],
-                Some(&[&token_owner_record_cookie.token_owner]),
+                Some(&[token_owner_record_cookie.get_governance_authority()]),
             )
             .await?;
 

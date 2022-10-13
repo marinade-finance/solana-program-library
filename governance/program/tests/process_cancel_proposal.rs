@@ -270,3 +270,64 @@ async fn test_cancel_proposal_in_voting_state() {
 
     assert_eq!(0, governance_account.voting_proposal_count);
 }
+
+#[tokio::test]
+async fn test_cancel_proposal_as_delegate() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+    let governed_account_cookie = governance_test.with_governed_account().await;
+
+    let mut token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(
+            &realm_cookie,
+            &governed_account_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    let proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let clock = governance_test.bench.get_clock().await;
+
+    // Act with setting governance delegate
+    governance_test
+        .with_community_governance_delegate(&realm_cookie, &mut token_owner_record_cookie)
+        .await;
+    token_owner_record_cookie.governance_authority =
+        Some(token_owner_record_cookie.clone_governance_delegate());
+    governance_test
+        .cancel_proposal(&proposal_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    // Assert
+    let proposal_account = governance_test
+        .get_proposal_account(&proposal_cookie.address)
+        .await;
+
+    assert_eq!(ProposalState::Cancelled, proposal_account.state);
+    assert_eq!(Some(clock.unix_timestamp), proposal_account.closed_at);
+
+    let realm_account = governance_test
+        .get_realm_account(&realm_cookie.address)
+        .await;
+
+    assert_eq!(0, realm_account.voting_proposal_count);
+
+    let governance_account = governance_test
+        .get_governance_account(&governance_cookie.address)
+        .await;
+
+    assert_eq!(0, governance_account.voting_proposal_count);
+}

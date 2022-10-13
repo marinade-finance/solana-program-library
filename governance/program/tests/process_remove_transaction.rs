@@ -385,3 +385,75 @@ async fn test_remove_transaction_with_proposal_transaction_from_other_proposal_e
         GovernanceError::InvalidProposalForProposalTransaction.into()
     );
 }
+
+#[tokio::test]
+async fn test_replace_transaction_as_delegate() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+    let governed_account_cookie = governance_test.with_governed_account().await;
+
+    let mut token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(
+            &realm_cookie,
+            &governed_account_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie = governance_test
+        .with_nop_transaction(&mut proposal_cookie, &token_owner_record_cookie, 0, None)
+        .await
+        .unwrap();
+
+    // Act with setting the delegate up
+    governance_test
+        .with_community_governance_delegate(&realm_cookie, &mut token_owner_record_cookie)
+        .await;
+    token_owner_record_cookie.governance_authority =
+        Some(token_owner_record_cookie.clone_governance_delegate());
+    governance_test
+        .remove_transaction(
+            &mut proposal_cookie,
+            &token_owner_record_cookie,
+            &proposal_transaction_cookie,
+        )
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie2 = governance_test
+        .with_nop_transaction(&mut proposal_cookie, &token_owner_record_cookie, 0, Some(0))
+        .await
+        .unwrap();
+
+    // Assert
+    let proposal_account = governance_test
+        .get_proposal_account(&proposal_cookie.address)
+        .await;
+
+    let yes_option = proposal_account.options.first().unwrap();
+
+    assert_eq!(yes_option.transactions_count, 1);
+    assert_eq!(yes_option.transactions_next_index, 1);
+
+    let proposal_transaction_account2 = governance_test
+        .get_proposal_transaction_account(&proposal_transaction_cookie2.address)
+        .await;
+
+    assert_eq!(
+        proposal_transaction_cookie2.account,
+        proposal_transaction_account2
+    );
+}

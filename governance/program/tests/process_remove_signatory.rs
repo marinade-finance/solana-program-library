@@ -291,3 +291,66 @@ async fn test_remove_signatory_with_already_signed_error() {
         GovernanceError::InvalidStateCannotEditSignatories.into()
     );
 }
+
+#[tokio::test]
+async fn test_remove_signatory_as_delegate() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+    let governed_account_cookie = governance_test.with_governed_account().await;
+
+    let mut token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(
+            &realm_cookie,
+            &governed_account_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    let proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let signatory_record_cookie = governance_test
+        .with_signatory(&proposal_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    // Act with setting delegate
+    governance_test
+        .with_community_governance_delegate(&realm_cookie, &mut token_owner_record_cookie)
+        .await;
+    token_owner_record_cookie.governance_authority =
+        Some(token_owner_record_cookie.clone_governance_delegate());
+    governance_test
+        .remove_signatory(
+            &proposal_cookie,
+            &token_owner_record_cookie,
+            &signatory_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+    let proposal_account = governance_test
+        .get_proposal_account(&proposal_cookie.address)
+        .await;
+
+    assert_eq!(0, proposal_account.signatories_count);
+    assert_eq!(ProposalState::Draft, proposal_account.state);
+
+    let signatory_account = governance_test
+        .bench
+        .get_account(&signatory_record_cookie.address)
+        .await;
+
+    assert_eq!(None, signatory_account);
+}
