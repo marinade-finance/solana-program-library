@@ -13,7 +13,10 @@ use solana_program::{
 
 use solana_program_test::*;
 
-use solana_sdk::signature::{Keypair, Signer};
+use solana_sdk::{
+    compute_budget::ComputeBudgetInstruction,
+    signature::{Keypair, Signer},
+};
 
 use spl_governance::{
     instruction::{
@@ -1995,7 +1998,11 @@ impl GovernanceProgramTest {
 
         self.bench
             .process_transaction(
-                &[create_proposal_transaction],
+                &[
+                    ComputeBudgetInstruction::set_compute_unit_limit(1_000_000u32),
+                    ComputeBudgetInstruction::set_compute_unit_price(1u64),
+                    create_proposal_transaction,
+                ],
                 Some(&[governance_authority]),
             )
             .await?;
@@ -2399,7 +2406,14 @@ impl GovernanceProgramTest {
         let signers = signers_override.unwrap_or(default_signers);
 
         self.bench
-            .process_transaction(&[cast_vote_ix], Some(signers))
+            .process_transaction(
+                &[
+                    ComputeBudgetInstruction::set_compute_unit_limit(1_000_000u32),
+                    ComputeBudgetInstruction::set_compute_unit_price(1u64),
+                    cast_vote_ix,
+                ],
+                Some(signers),
+            )
             .await?;
 
         let vote_amount = token_owner_record_cookie
