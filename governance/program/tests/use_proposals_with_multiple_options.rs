@@ -298,7 +298,7 @@ async fn test_vote_on_none_executable_single_choice_proposal_with_multiple_optio
         .await
         .unwrap();
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
         .advance_clock_past_timestamp(
             governance_cookie.account.config.voting_base_time as i64 + clock.unix_timestamp,
@@ -404,7 +404,7 @@ async fn test_vote_on_none_executable_multi_choice_proposal_with_multiple_option
         .await
         .unwrap();
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
         .advance_clock_past_timestamp(
             governance_cookie.account.config.voting_base_time as i64 + clock.unix_timestamp,
@@ -565,7 +565,7 @@ async fn test_vote_on_executable_proposal_with_multiple_options_and_partial_succ
         .await
         .unwrap();
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
         .advance_clock_past_timestamp(
             governance_cookie.account.config.voting_base_time as i64 + clock.unix_timestamp,
@@ -759,7 +759,7 @@ async fn test_execute_proposal_with_multiple_options_and_partial_success() {
         .await
         .unwrap();
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
         .advance_clock_by_min_timespan(governance_cookie.account.config.voting_base_time as u64)
         .await;
@@ -926,7 +926,7 @@ async fn test_try_execute_proposal_with_multiple_options_and_full_deny() {
         .await
         .unwrap();
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
         .advance_clock_by_min_timespan(governance_cookie.account.config.voting_base_time as u64)
         .await;
@@ -1172,10 +1172,10 @@ async fn test_vote_multi_weighted_choice_proposal_non_executable() {
         .await
         .unwrap();
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
         .advance_clock_past_timestamp(
-            governance_cookie.account.config.max_voting_time as i64 + clock.unix_timestamp,
+            governance_cookie.account.config.voting_base_time as i64 + clock.unix_timestamp,
         )
         .await;
 
@@ -1393,9 +1393,9 @@ async fn test_vote_multi_weighted_choice_proposal_with_partial_success() {
         .await
         .expect("Casting deny vote of owner 3 should succeed");
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
-        .advance_clock_by_min_timespan(governance_cookie.account.config.max_voting_time as u64)
+        .advance_clock_by_min_timespan(governance_cookie.account.config.voting_base_time as u64)
         .await;
     governance_test
         .finalize_vote(&realm_cookie, &proposal_cookie, None)
@@ -1589,9 +1589,9 @@ async fn test_vote_multi_weighted_choice_proposal_with_multi_success() {
         .await
         .expect("Voting the vote 1 of owner 1 should succeed");
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
-        .advance_clock_by_min_timespan(governance_cookie.account.config.max_voting_time as u64)
+        .advance_clock_by_min_timespan(governance_cookie.account.config.voting_base_time as u64)
         .await;
     governance_test
         .finalize_vote(&realm_cookie, &proposal_cookie, None)
@@ -1726,9 +1726,9 @@ async fn test_vote_multi_weighted_choice_proposal_executable_with_full_deny() {
         .await
         .expect("Casting deny vote for owner 1 should succeed");
 
-    // Advance timestamp past max_voting_time
+    // Advance timestamp past voting_base_time
     governance_test
-        .advance_clock_by_min_timespan(governance_cookie.account.config.max_voting_time as u64)
+        .advance_clock_by_min_timespan(governance_cookie.account.config.voting_base_time as u64)
         .await;
 
     governance_test
@@ -1765,5 +1765,204 @@ async fn test_vote_multi_weighted_choice_proposal_executable_with_full_deny() {
     assert_eq!(
         transaction2_err,
         GovernanceError::InvalidStateCannotExecuteTransaction.into()
+    );
+}
+
+#[tokio::test]
+async fn test_vote_multi_choice_proposal_with_limiting_number_of_choices() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+    let governed_mint_cookie = governance_test.with_governed_mint().await;
+
+    // 100 tokens each, sum 300 tokens
+    let token_owner_record_cookie1 = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+    let token_owner_record_cookie2 = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    // 60 tokes approval quorum as 30% of 200 is 60
+    let mut governance_config = governance_test.get_default_governance_config();
+    governance_config.community_vote_threshold = VoteThreshold::YesVotePercentage(30);
+
+    let mut governance_cookie = governance_test
+        .with_mint_governance_using_config(
+            &realm_cookie,
+            &governed_mint_cookie,
+            &token_owner_record_cookie1,
+            &governance_config,
+        )
+        .await
+        .unwrap();
+
+    let options_number: u8 = 201;
+    let mut options: Vec<String> = Vec::new();
+    for i in 1..options_number + 1 {
+        options.push(format!("option {}", i));
+    }
+    let mut proposal_cookie = governance_test
+        .with_multi_option_proposal(
+            &token_owner_record_cookie1,
+            &mut governance_cookie,
+            options,
+            true,
+            VoteType::MultiChoice {
+                choice_type: MultiChoiceType::Approval,
+                max_winning_options: options_number,
+                max_voter_options: options_number,
+            },
+        )
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie1 = governance_test
+        .with_mint_tokens_transaction(
+            &governed_mint_cookie,
+            &mut proposal_cookie,
+            &token_owner_record_cookie1,
+            0,
+            Some(0),
+            None,
+        )
+        .await
+        .unwrap();
+    let proposal_transaction_cookie2 = governance_test
+        .with_mint_tokens_transaction(
+            &governed_mint_cookie,
+            &mut proposal_cookie,
+            &token_owner_record_cookie1,
+            1,
+            Some(0),
+            None,
+        )
+        .await
+        .unwrap();
+    let proposal_transaction_cookie3 = governance_test
+        .with_mint_tokens_transaction(
+            &governed_mint_cookie,
+            &mut proposal_cookie,
+            &token_owner_record_cookie1,
+            2,
+            Some(0),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let signatory_record_cookie = governance_test
+        .with_signatory(&proposal_cookie, &token_owner_record_cookie1)
+        .await
+        .unwrap();
+
+    governance_test
+        .sign_off_proposal(&proposal_cookie, &signatory_record_cookie)
+        .await
+        .unwrap();
+
+    // vote1 + vote2:
+    //   choice 1: 0 -> Defeated
+    //   choice 2: 100 -> Success
+    //   choice 3: 100 -> Success
+
+    let mut vote_vec1 = vec![
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 0,
+        },
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 100,
+        },
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 0,
+        },
+    ];
+    for _ in vote_vec1.len()..options_number as usize {
+        vote_vec1.push(VoteChoice {
+            rank: 0,
+            weight_percentage: 0,
+        });
+    }
+    let vote1 = Vote::Approve(vote_vec1);
+    governance_test
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie1, vote1)
+        .await
+        .expect("Voting the vote 1 of owner 1 should succeed");
+
+    let mut vote_vec2 = vec![
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 0,
+        },
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 0,
+        },
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 100,
+        },
+    ];
+    for _ in vote_vec2.len()..options_number as usize {
+        vote_vec2.push(VoteChoice {
+            rank: 0,
+            weight_percentage: 0,
+        });
+    }
+    let vote2 = Vote::Approve(vote_vec2);
+    governance_test
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie2, vote2)
+        .await
+        .expect("Voting the vote 1 of owner 1 should succeed");
+
+    // Advance timestamp past voting_base_time
+    governance_test
+        .advance_clock_by_min_timespan(governance_cookie.account.config.voting_base_time as u64)
+        .await;
+    governance_test
+        .finalize_vote(&realm_cookie, &proposal_cookie, None)
+        .await
+        .unwrap();
+    // Advance timestamp past hold_up_time
+    governance_test
+        .advance_clock_by_min_timespan(proposal_transaction_cookie1.account.hold_up_time as u64)
+        .await;
+
+    let mut proposal_account = governance_test
+        .get_proposal_account(&proposal_cookie.address)
+        .await;
+
+    assert_eq!(ProposalState::Succeeded, proposal_account.state);
+
+    // Act
+    let transaction1_err = governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie1)
+        .await
+        .expect_err("Choice 1 should fail to execute, it hasn't got enough votes");
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie2)
+        .await
+        .expect("Choice 2 should be executed as it passed the poll");
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie3)
+        .await
+        .expect("Choice 3 should be executed as it passed the poll");
+
+    // Assert
+    proposal_account = governance_test
+        .get_proposal_account(&proposal_cookie.address)
+        .await;
+
+    assert_eq!(ProposalState::Completed, proposal_account.state);
+
+    assert_eq!(
+        transaction1_err,
+        GovernanceError::CannotExecuteDefeatedOption.into()
     );
 }
