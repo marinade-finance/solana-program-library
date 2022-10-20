@@ -87,6 +87,10 @@ pub enum VoteType {
     /// Ex. voters are given 5 options, can choose up to 3 (max_voter_options)
     /// and only 1 (max_winning_options) option can win and be executed
     MultiChoice {
+        /// Type of MultiChoice
+        #[allow(dead_code)]
+        choice_type: MultiChoiceType,
+
         /// The max number of options a voter can choose
         /// By default it equals to the number of available options
         /// Note: In the current version the limit is not supported and not enforced yet
@@ -100,18 +104,19 @@ pub enum VoteType {
         #[allow(dead_code)]
         max_winning_options: u8,
     },
+}
+
+/// Type of MultiChoice.
+#[derive(Clone, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, BorshSchema)]
+pub enum MultiChoiceType {
+    /// Normal multi choice type that requires decision for only one option when voting.
+    Approval,
 
     /// The multi weighted choice behaves the same way as the MultiChoice
     /// while it considers the weight_percentage defined in the VoteChoice
-    MultiWeightedChoice {
-        /// The max number of options a voter can choose; see MultiChoice
-        #[allow(dead_code)]
-        max_voter_options: u8,
-
-        /// The max number of wining options; see MultiChoice
-        #[allow(dead_code)]
-        max_winning_options: u8,
-    },
+    Weighted,
+    // Quadartic multi choice, not available yet
+    // Quadratic,
 }
 
 /// Governance Proposal
@@ -221,7 +226,7 @@ pub struct ProposalV2 {
 impl AccountMaxSize for ProposalV2 {
     fn get_max_size(&self) -> Option<usize> {
         let options_size: usize = self.options.iter().map(|o| o.label.len() + 19).sum();
-        Some(self.name.len() + self.description_link.len() + options_size + 295)
+        Some(self.name.len() + self.description_link.len() + options_size + 296)
     }
 }
 
@@ -436,7 +441,7 @@ impl ProposalV2 {
             // If none of the individual options succeeded then the proposal as a whole is defeated
             ProposalState::Defeated
         } else {
-            match self.vote_type {
+            match &self.vote_type {
                 VoteType::SingleChoice => {
                     let proposal_state = if best_succeeded_option_count > 1 {
                         // If there is more than one winning option then the single choice proposal is considered as defeated
@@ -458,10 +463,7 @@ impl ProposalV2 {
                     proposal_state
                 }
                 VoteType::MultiChoice {
-                    max_voter_options: _n,
-                    max_winning_options: _m,
-                }
-                | VoteType::MultiWeightedChoice {
+                    choice_type: _t,
                     max_voter_options: _n,
                     max_winning_options: _m,
                 } => {
@@ -828,7 +830,8 @@ impl ProposalV2 {
                         return Err(GovernanceError::InvalidVote.into());
                     }
 
-                    if let VoteType::MultiWeightedChoice {
+                    if let VoteType::MultiChoice {
+                        choice_type: MultiChoiceType::Weighted,
                         max_voter_options: _m,
                         max_winning_options: _n,
                     } = self.vote_type
@@ -852,6 +855,7 @@ impl ProposalV2 {
                         }
                     }
                     VoteType::MultiChoice {
+                        choice_type: MultiChoiceType::Approval,
                         max_voter_options: _n,
                         max_winning_options: _m,
                     } => {
@@ -859,7 +863,8 @@ impl ProposalV2 {
                             return Err(GovernanceError::InvalidVote.into());
                         }
                     }
-                    VoteType::MultiWeightedChoice {
+                    VoteType::MultiChoice {
+                        choice_type: MultiChoiceType::Weighted,
                         max_voter_options: _n,
                         max_winning_options: _m,
                     } => {
@@ -1109,17 +1114,14 @@ pub fn assert_valid_proposal_options(
     }
 
     if let VoteType::MultiChoice {
+        choice_type: _choice_type,
         max_voter_options,
         max_winning_options,
-    }
-    | VoteType::MultiWeightedChoice {
-        max_voter_options,
-        max_winning_options,
-    } = *vote_type
+    } = vote_type
     {
         if options.len() == 1
-            || max_voter_options as usize != options.len()
-            || max_winning_options as usize != options.len()
+            || *max_voter_options as usize != options.len()
+            || *max_winning_options as usize != options.len()
         {
             return Err(GovernanceError::InvalidProposalOptions.into());
         }
@@ -1272,6 +1274,7 @@ mod test {
     fn test_max_size() {
         let mut proposal = create_test_proposal();
         proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 1,
             max_winning_options: 1,
         };
@@ -1285,6 +1288,7 @@ mod test {
     fn test_multi_option_proposal_max_size() {
         let mut proposal = create_test_multi_option_proposal();
         proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2534,6 +2538,7 @@ mod test {
         // Arrange
         let mut proposal = create_test_multi_option_proposal();
         proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2570,6 +2575,7 @@ mod test {
         // Arrange
         let mut proposal = create_test_multi_option_proposal();
         proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2606,6 +2612,7 @@ mod test {
     ) {
         // Arrange
         let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2623,6 +2630,7 @@ mod test {
     pub fn test_assert_valid_proposal_options_with_no_options_for_multi_choice_vote_error() {
         // Arrange
         let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2654,6 +2662,7 @@ mod test {
     pub fn test_assert_valid_proposal_options_for_multi_choice_vote() {
         // Arrange
         let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2675,6 +2684,7 @@ mod test {
     pub fn test_assert_valid_proposal_options_for_multi_choice_vote_with_empty_option_error() {
         // Arrange
         let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2697,7 +2707,8 @@ mod test {
         // Multi weighted choice may be weighted but sum of choices has to be 100%
         // Arrange
         let mut proposal = create_test_multi_option_proposal();
-        proposal.vote_type = VoteType::MultiWeightedChoice {
+        proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2733,7 +2744,8 @@ mod test {
         // Multi weighted choice may be weighted to 100% and 0% rest
         // Arrange
         let mut proposal = create_test_multi_option_proposal();
-        proposal.vote_type = VoteType::MultiWeightedChoice {
+        proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2768,7 +2780,8 @@ mod test {
     pub fn test_assert_valid_vote_with_no_choices_for_multi_weighted_choice_error() {
         // Arrange
         let mut proposal = create_test_multi_option_proposal();
-        proposal.vote_type = VoteType::MultiWeightedChoice {
+        proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 2,
             max_winning_options: 2,
         };
@@ -2804,7 +2817,8 @@ mod test {
         // Multi weighted choice does not permit vote with sum weight over 100%
         // Arrange
         let mut proposal = create_test_multi_option_proposal();
-        proposal.vote_type = VoteType::MultiWeightedChoice {
+        proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2839,7 +2853,8 @@ mod test {
     pub fn test_assert_valid_proposal_options_with_invalid_choice_number_for_multi_weighted_choice_vote_error(
     ) {
         // Arrange
-        let vote_type = VoteType::MultiWeightedChoice {
+        let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2857,7 +2872,8 @@ mod test {
     pub fn test_assert_valid_proposal_options_with_no_options_for_multi_weighted_choice_vote_error()
     {
         // Arrange
-        let vote_type = VoteType::MultiWeightedChoice {
+        let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2874,7 +2890,8 @@ mod test {
     #[test]
     pub fn test_assert_valid_proposal_options_for_multi_weighted_choice_vote() {
         // Arrange
-        let vote_type = VoteType::MultiWeightedChoice {
+        let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2896,7 +2913,8 @@ mod test {
     pub fn test_assert_valid_proposal_options_for_multi_weighted_choice_vote_with_empty_option_error(
     ) {
         // Arrange
-        let vote_type = VoteType::MultiWeightedChoice {
+        let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2917,7 +2935,8 @@ mod test {
     #[test]
     pub fn test_assert_more_than_ten_proposal_options_for_multi_weighted_choice_error() {
         // Arrange
-        let vote_type = VoteType::MultiWeightedChoice {
+        let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -2946,7 +2965,8 @@ mod test {
     #[test]
     pub fn test_assert_same_label_options_for_multi_weighted_choice_error() {
         // Arrange
-        let vote_type = VoteType::MultiWeightedChoice {
+        let vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Weighted,
             max_voter_options: 1,
             max_winning_options: 1,
         };
