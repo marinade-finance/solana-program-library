@@ -21,11 +21,17 @@ pub enum GovernanceToolsError {
 
     /// Invalid account owner
     #[error("Invalid account owner")]
-    InvalidAccountOwner,
+    InvalidAccountOwner, // 1102
 
     /// Invalid Account type
     #[error("Invalid Account type")]
-    InvalidAccountType,
+    InvalidAccountType, // 1103
+
+    /// Creating account with pre-defined size but it's less than minimum necessary
+    #[error(
+        "Creating an account with prefetch space size too low to fit account data on creation"
+    )]
+    CreateAccountPrefetchSpaceExceeded, // 1104
 }
 
 impl PrintProgramError for GovernanceToolsError {

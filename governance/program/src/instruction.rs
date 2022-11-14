@@ -196,6 +196,13 @@ pub enum GovernanceInstruction {
         /// A proposal without the rejecting option is a non binding survey
         /// Only proposals with the rejecting option can have executable transactions
         use_deny_option: bool,
+
+        #[allow(dead_code)]
+        /// Indicates whether space for the proposal account will be taken from data provided through the call
+        /// (when None) or the space for the account will be pre-defined by some amount
+        /// Prefetching the space can be used for adding options into the proposal in separate instruction when in draft state
+        /// Value 0 means no prefetching to happen.
+        prefetch_space: u64,
     },
 
     /// Adds a signatory to the Proposal which means this Proposal can't leave Draft state until yet another Signatory signs
@@ -504,6 +511,20 @@ pub enum GovernanceInstruction {
         /// The amount to revoke
         #[allow(dead_code)]
         amount: u64,
+    },
+
+    /// Insert Options to proposal
+    ///
+    ///   0. `[]` Realm account the created Proposal belongs to
+    ///   2. `[]` Governance account
+    ///   1. `[writable]` Proposal account.
+    ///   3. `[]` TokenOwnerRecord account of the Proposal owner
+    ///   4. `[]` Governing Token Mint the Proposal is created for
+    ///   5. `[signer]` Governance Authority (Token Owner or Governance Delegate)
+    InsertProposalOptions {
+        /// Options to be added into proposal account
+        #[allow(dead_code)]
+        options: Vec<String>,
     },
 }
 
@@ -898,6 +919,7 @@ pub fn create_proposal(
     options: Vec<String>,
     use_deny_option: bool,
     proposal_index: u32,
+    prefetch_space: Option<u64>,
 ) -> Instruction {
     let proposal_address = get_proposal_address(
         program_id,
@@ -919,13 +941,52 @@ pub fn create_proposal(
 
     with_realm_config_accounts(program_id, &mut accounts, realm, voter_weight_record, None);
 
+    let prefetch_space = if let Some(prefetch_space_defined) = prefetch_space {
+        prefetch_space_defined
+    } else {
+        0 // means no prefetching to be run
+    };
+
     let instruction = GovernanceInstruction::CreateProposal {
         name,
         description_link,
         vote_type,
         options,
         use_deny_option,
+        prefetch_space,
     };
+
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
+    }
+}
+
+/// Insert proposal options when proposal in draft
+#[allow(clippy::too_many_arguments)]
+pub fn insert_proposal_options(
+    program_id: &Pubkey,
+    // Accounts
+    realm: &Pubkey,
+    governance: &Pubkey,
+    proposal_address: &Pubkey,
+    proposal_owner_record: &Pubkey,
+    governance_authority: &Pubkey,
+    governing_token_mint: &Pubkey,
+    // Data
+    options: Vec<String>,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(*realm, false),
+        AccountMeta::new_readonly(*governance, false),
+        AccountMeta::new(*proposal_address, false),
+        AccountMeta::new_readonly(*proposal_owner_record, false),
+        AccountMeta::new_readonly(*governing_token_mint, false),
+        AccountMeta::new_readonly(*governance_authority, true),
+    ];
+
+    let instruction = GovernanceInstruction::InsertProposalOptions { options };
 
     Instruction {
         program_id: *program_id,

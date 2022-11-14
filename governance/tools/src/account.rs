@@ -99,6 +99,7 @@ pub fn create_and_serialize_account_signed<'a, T: BorshSerialize + AccountMaxSiz
         program_id, // By default use PDA program_id as the owner of the account
         system_info,
         rent,
+        None,
     )
 }
 
@@ -114,6 +115,7 @@ pub fn create_and_serialize_account_with_owner_signed<'a, T: BorshSerialize + Ac
     owner_program_id: &Pubkey,
     system_info: &AccountInfo<'a>,
     rent: &Rent,
+    prefetch_space: Option<usize>,
 ) -> Result<(), ProgramError> {
     // Get PDA and assert it's the same as the requested account address
     let (account_address, bump_seed) =
@@ -135,6 +137,20 @@ pub fn create_and_serialize_account_with_owner_signed<'a, T: BorshSerialize + Ac
         let account_size = serialized_data.len();
         (Some(serialized_data), account_size)
     };
+    let account_size = if let Some(prefetch_space) = prefetch_space {
+        msg!(
+            "Prefetch space defined of value {} and account size now: {}",
+            prefetch_space,
+            account_size
+        );
+        if prefetch_space >= account_size {
+            Ok(prefetch_space)
+        } else {
+            Err(GovernanceToolsError::CreateAccountPrefetchSpaceExceeded)
+        }
+    } else {
+        Ok(account_size)
+    }?;
 
     let mut signers_seeds = account_address_seeds.to_vec();
     let bump = &[bump_seed];

@@ -1,16 +1,5 @@
 //! Program state processor
 
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    clock::Clock,
-    entrypoint::ProgramResult,
-    pubkey::Pubkey,
-    rent::Rent,
-    sysvar::Sysvar,
-};
-use spl_governance_addin_api::voter_weight::VoterWeightAction;
-use spl_governance_tools::account::create_and_serialize_account_signed;
-
 use crate::{
     error::GovernanceError,
     state::{
@@ -26,6 +15,16 @@ use crate::{
         vote_record::VoteKind,
     },
 };
+use solana_program::{
+    account_info::{next_account_info, AccountInfo},
+    clock::Clock,
+    entrypoint::ProgramResult,
+    pubkey::Pubkey,
+    rent::Rent,
+    sysvar::Sysvar,
+};
+use spl_governance_addin_api::voter_weight::VoterWeightAction;
+use spl_governance_tools::account::create_and_serialize_account_with_owner_signed;
 
 /// Processes CreateProposal instruction
 pub fn process_create_proposal(
@@ -36,6 +35,7 @@ pub fn process_create_proposal(
     vote_type: VoteType,
     options: Vec<String>,
     use_deny_option: bool,
+    prefetch_space: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -107,7 +107,7 @@ pub fn process_create_proposal(
         .unwrap();
     proposal_owner_record_data.serialize(&mut *proposal_owner_record_info.data.borrow_mut())?;
 
-    assert_valid_proposal_options(&options, &vote_type)?;
+    assert_valid_proposal_options(&options)?;
 
     let proposal_options: Vec<ProposalOption> = options
         .iter()
@@ -162,7 +162,12 @@ pub fn process_create_proposal(
         reserved1: 0,
     };
 
-    create_and_serialize_account_signed::<ProposalV2>(
+    let prefetch_space: Option<usize> = if prefetch_space != 0 {
+        Some(prefetch_space as usize)
+    } else {
+        None
+    };
+    create_and_serialize_account_with_owner_signed::<ProposalV2>(
         payer_info,
         proposal_info,
         &proposal_data,
@@ -172,8 +177,10 @@ pub fn process_create_proposal(
             &governance_data.proposals_count.to_le_bytes(),
         ),
         program_id,
+        program_id,
         system_info,
         &rent,
+        prefetch_space,
     )?;
 
     governance_data.proposals_count = governance_data.proposals_count.checked_add(1).unwrap();

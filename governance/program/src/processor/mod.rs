@@ -15,6 +15,7 @@ mod process_deposit_governing_tokens;
 mod process_execute_transaction;
 mod process_finalize_vote;
 mod process_flag_transaction_error;
+mod process_insert_proposal_options;
 mod process_insert_transaction;
 mod process_relinquish_vote;
 mod process_remove_signatory;
@@ -46,6 +47,7 @@ use process_deposit_governing_tokens::*;
 use process_execute_transaction::*;
 use process_finalize_vote::*;
 use process_flag_transaction_error::*;
+use process_insert_proposal_options::*;
 use process_insert_transaction::*;
 use process_relinquish_vote::*;
 use process_remove_signatory::*;
@@ -95,15 +97,18 @@ pub fn process_instruction(
         vote_type,
         options,
         use_deny_option,
+        prefetch_space,
     } = &instruction
     {
         // Do not iterate through options
-        msg!("GOVERNANCE-INSTRUCTION: CreateProposal {{name: {:?}, description_link: {:?}, vote_type: {:?}, use_deny_option: {:?}, number of options: {} }}",
+        msg!(
+            "GOVERNANCE-INSTRUCTION: CreateProposal {{name: {:?}, description_link: {:?}, vote_type: {:?}, use_deny_option: {:?}, number of options on creation: {}, prefetch space: {} }}",
             name,
             description_link,
             vote_type,
             use_deny_option,
-            options.len()
+            options.len(),
+            prefetch_space,
         );
     } else if let GovernanceInstruction::CastVote {
         vote: Vote::Approve(v),
@@ -172,6 +177,7 @@ pub fn process_instruction(
             vote_type: proposal_type,
             options,
             use_deny_option,
+            prefetch_space,
         } => process_create_proposal(
             program_id,
             accounts,
@@ -180,7 +186,11 @@ pub fn process_instruction(
             proposal_type,
             options,
             use_deny_option,
+            prefetch_space,
         ),
+        GovernanceInstruction::InsertProposalOptions { options } => {
+            process_insert_proposal_options(program_id, accounts, options)
+        }
         GovernanceInstruction::AddSignatory { signatory } => {
             process_add_signatory(program_id, accounts, signatory)
         }

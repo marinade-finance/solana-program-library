@@ -442,6 +442,18 @@ pub enum GovernanceError {
     /// Vote not allowed in cool off time
     #[error("Vote not allowed in cool off time")]
     VoteNotAllowedInCoolOffTime, // 606
+
+    /// Proposal data is not available for size calculation
+    #[error("Size of proposal data cannot be calculated")]
+    CannotCalculateSizeOfProposalData, // 607
+
+    /// Cannot fit new options data to proposal account
+    #[error("New options data size exceeds allocated proposal account space")]
+    InsertProposalOptionsDataExceedsAccountSize, // 608
+
+    /// A proposal needs to have at least one option to be considered correct for voting
+    #[error("At least one option is required to be inserted to proposal for voting")]
+    AtLeastOneOptionInProposalRequired, // 609
 }
 
 impl PrintProgramError for GovernanceError {

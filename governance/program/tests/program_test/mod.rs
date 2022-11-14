@@ -23,10 +23,11 @@ use spl_governance::{
         add_signatory, cancel_proposal, cast_vote, create_governance, create_mint_governance,
         create_native_treasury, create_program_governance, create_proposal, create_realm,
         create_token_governance, create_token_owner_record, deposit_governing_tokens,
-        execute_transaction, finalize_vote, flag_transaction_error, insert_transaction,
-        relinquish_vote, remove_signatory, remove_transaction, revoke_governing_tokens,
-        set_governance_config, set_governance_delegate, set_realm_authority, set_realm_config,
-        sign_off_proposal, upgrade_program_metadata, withdraw_governing_tokens,
+        execute_transaction, finalize_vote, flag_transaction_error, insert_proposal_options,
+        insert_transaction, relinquish_vote, remove_signatory, remove_transaction,
+        revoke_governing_tokens, set_governance_config, set_governance_delegate,
+        set_realm_authority, set_realm_config, sign_off_proposal, upgrade_program_metadata,
+        withdraw_governing_tokens,
     },
     processor::process_instruction,
     state::{
@@ -1908,6 +1909,7 @@ impl GovernanceProgramTest {
             options,
             use_deny_option,
             vote_type,
+            None,
             NopOverride,
         )
         .await
@@ -1948,6 +1950,7 @@ impl GovernanceProgramTest {
             options,
             true,
             VoteType::SingleChoice,
+            None,
             instruction_override,
         )
         .await
@@ -1961,6 +1964,7 @@ impl GovernanceProgramTest {
         options: Vec<String>,
         use_deny_option: bool,
         vote_type: VoteType,
+        prefetch_space: Option<u64>,
         instruction_override: F,
     ) -> Result<ProposalCookie, ProgramError> {
         let proposal_index = governance_cookie.next_proposal_index;
@@ -1992,6 +1996,7 @@ impl GovernanceProgramTest {
             options.clone(),
             use_deny_option,
             proposal_index,
+            prefetch_space,
         );
 
         instruction_override(&mut create_proposal_transaction);
@@ -2074,6 +2079,54 @@ impl GovernanceProgramTest {
             proposal_owner: governance_authority.pubkey(),
             realm: governance_cookie.account.realm,
         })
+    }
+
+    #[allow(dead_code)]
+    pub async fn with_proposal_options_using_instruction_impl<F: Fn(&mut Instruction)>(
+        &mut self,
+        token_owner_record_cookie: &TokenOwnerRecordCookie,
+        governance_cookie: &mut GovernanceCookie,
+        proposal_cookie: &mut ProposalCookie,
+        new_options: Vec<String>,
+        instruction_override: F,
+    ) -> Result<(), ProgramError> {
+        let governance_authority = token_owner_record_cookie.get_governance_authority();
+
+        let mut new_proposal_options: Vec<ProposalOption> = new_options
+            .iter()
+            .map(|o| ProposalOption {
+                label: o.to_string(),
+                vote_weight: 0,
+                vote_result: OptionVoteResult::None,
+                transactions_executed_count: 0,
+                transactions_count: 0,
+                transactions_next_index: 0,
+            })
+            .collect();
+
+        let mut insert_proposal_options_ix = insert_proposal_options(
+            &self.program_id,
+            &proposal_cookie.realm,
+            &governance_cookie.address,
+            &proposal_cookie.address,
+            &token_owner_record_cookie.address,
+            &governance_authority.pubkey(),
+            &token_owner_record_cookie.account.governing_token_mint,
+            new_options,
+        );
+        instruction_override(&mut insert_proposal_options_ix);
+
+        self.bench
+            .process_transaction(&[insert_proposal_options_ix], Some(&[governance_authority]))
+            .await?;
+
+        // updating the proposal cookie with newly added options
+        proposal_cookie
+            .account
+            .options
+            .append(&mut new_proposal_options);
+
+        Ok(())
     }
 
     #[allow(dead_code)]

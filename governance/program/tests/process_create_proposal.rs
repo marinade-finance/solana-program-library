@@ -7,7 +7,11 @@ mod program_test;
 
 use program_test::*;
 use solana_sdk::signature::Keypair;
-use spl_governance::{error::GovernanceError, state::enums::VoteThreshold};
+use spl_governance::{
+    error::GovernanceError,
+    state::{enums::VoteThreshold, proposal::VoteType},
+};
+use spl_governance_test_sdk::tools::NopOverride;
 
 #[tokio::test]
 async fn test_create_community_proposal() {
@@ -619,4 +623,56 @@ async fn test_create_proposal_with_community_disabled_error() {
 
     // Assert
     assert_eq!(err, GovernanceError::VoterWeightThresholdDisabled.into());
+}
+
+#[tokio::test]
+async fn test_create_proposal_with_size_prefetch() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+    let governed_account_cookie = governance_test.with_governed_account().await;
+
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(
+            &realm_cookie,
+            &governed_account_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    // Act
+    let prefetch_space = Some(10_000); // an arbitrary number bigger to basic size of proposal data
+    let options = vec!["Yes".to_string()];
+    let proposal_cookie = governance_test
+        .with_proposal_using_instruction_impl(
+            &token_owner_record_cookie,
+            &mut governance_cookie,
+            options,
+            true,
+            VoteType::SingleChoice,
+            prefetch_space,
+            NopOverride,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+    let proposal_account = governance_test
+        .get_proposal_account(&proposal_cookie.address)
+        .await;
+    assert_eq!(proposal_cookie.account, proposal_account);
+
+    let raw_account = governance_test
+        .bench
+        .get_account(&proposal_cookie.address)
+        .await
+        .unwrap();
+    assert_eq!(prefetch_space.unwrap() as usize, raw_account.data.len());
 }
