@@ -526,6 +526,13 @@ pub enum GovernanceInstruction {
         #[allow(dead_code)]
         options: Vec<String>,
     },
+
+    /// Verify the state and move the Proposal to Completed.
+    /// Permission-less operation whoever could call.
+    ///
+    ///   0. `[]` Governance account
+    ///   1. `[writable]` Proposal account.
+    CompleteProposal {},
 }
 
 /// Creates CreateRealm instruction
@@ -1671,5 +1678,27 @@ pub fn with_governing_token_config_args(
         use_voter_weight_addin,
         use_max_voter_weight_addin,
         token_type: governing_token_config_args.token_type,
+    }
+}
+
+/// Complete proposal when proposal is stuck in Succeeded
+#[allow(clippy::too_many_arguments)]
+pub fn complete_proposal(
+    program_id: &Pubkey,
+    // Accounts
+    governance: &Pubkey,
+    proposal_address: &Pubkey,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(*governance, false),
+        AccountMeta::new(*proposal_address, false),
+    ];
+
+    let instruction = GovernanceInstruction::CompleteProposal {};
+
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: instruction.try_to_vec().unwrap(),
     }
 }
