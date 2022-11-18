@@ -7,7 +7,11 @@ use solana_program_test::tokio;
 use program_test::*;
 use spl_governance::{
     error::GovernanceError,
-    state::enums::{ProposalState, VoteThreshold},
+    state::{
+        enums::{ProposalState, VoteThreshold},
+        proposal::{OptionVoteResult, VoteType},
+        vote_record::{Vote, VoteChoice},
+    },
 };
 
 #[tokio::test]
@@ -505,4 +509,115 @@ async fn test_finalize_vote_with_cannot_finalize_during_cool_off_time_error() {
     // Assert
 
     assert_eq!(err, GovernanceError::CannotFinalizeVotingInProgress.into());
+}
+
+#[tokio::test]
+async fn test_finalize_vote_quorum_suceed_all_threshold_to_succeeded() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+    let governed_account_cookie = governance_test.with_governed_account().await;
+
+    let mut governance_config = governance_test.get_default_governance_config();
+
+    governance_config.community_vote_threshold = VoteThreshold::QuorumPercentageAllSucceed(50);
+
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance_using_config(
+            &realm_cookie,
+            &governed_account_cookie,
+            &token_owner_record_cookie,
+            &governance_config,
+        )
+        .await
+        .unwrap();
+
+    // Total 200 tokens; 50% is 100 tokens, the token owner owns 100 that will be voted with
+    governance_test
+        .mint_community_tokens(&realm_cookie, 100)
+        .await;
+
+    let proposal_cookie = governance_test
+        .with_multi_option_proposal(
+            &token_owner_record_cookie,
+            &mut governance_cookie,
+            vec![
+                "option 1".to_string(),
+                "option 2".to_string(),
+                "option 3".to_string(),
+            ],
+            false,
+            VoteType::MultiChoice {
+                max_winning_options: 3,
+                max_voter_options: 3,
+            },
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .sign_off_proposal_by_owner(&proposal_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    let vote = Vote::Approve(vec![
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 100,
+        },
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 0,
+        },
+        VoteChoice {
+            rank: 0,
+            weight_percentage: 0,
+        },
+    ]);
+
+    // Act
+    governance_test
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, vote)
+        .await
+        .unwrap();
+
+    // Ensure not tipped
+    let proposal_account = governance_test
+        .get_proposal_account(&proposal_cookie.address)
+        .await;
+
+    assert_eq!(ProposalState::Voting, proposal_account.state);
+
+    // advance time
+    let clock = governance_test.bench.get_clock().await;
+    governance_test
+        .advance_clock_past_timestamp(
+            clock.unix_timestamp + governance_cookie.account.config.voting_base_time as i64,
+        )
+        .await;
+
+    // Act
+    governance_test
+        .finalize_vote(&realm_cookie, &proposal_cookie, None)
+        .await
+        .unwrap();
+
+    // Assert
+    let proposal_account = governance_test
+        .get_proposal_account(&proposal_cookie.address)
+        .await;
+
+    // the transition move from Succeeded to Completed happens as deny vote is not permitted
+    assert_eq!(proposal_account.state, ProposalState::Completed);
+    assert_eq!(Some(200), proposal_account.max_vote_weight);
+    // as the quorum_all_suceeed makes all options to pass when quorum is exceeded
+    for option in proposal_account.options {
+        assert_eq!(OptionVoteResult::Succeeded, option.vote_result);
+    }
 }
