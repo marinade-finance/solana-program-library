@@ -155,12 +155,17 @@ pub enum VoteThreshold {
     /// The minimum number of votes in % out of the entire pool of governance tokens eligible to vote
     /// which must be cast for the vote to be valid
     /// Once the quorum is achieved a simple majority (50%+1) of Yes votes is required for the vote to succeed
-    /// Note: Quorum is not implemented in the current version
+    // TODO: if quorum is achieved how it's considered about veto and deny votes?
     QuorumPercentage(u8),
 
     /// Disabled vote threshold indicates the given voting population (community or council) is not allowed to vote
     /// on proposals for the given Governance
     Disabled,
+
+    /// The minimum number of votes in % out of the entire pool of governance tokens eligible to vote
+    /// which must be cast for the proposal being considered as successful
+    /// Once the quorum is achieved all options are considered as successful
+    QuorumPercentageAllSucceed(u8),
     //
     // Absolute vote threshold expressed in the voting mint units
     // It can be implemented once Solana runtime supports accounts resizing to accommodate u64 size extension

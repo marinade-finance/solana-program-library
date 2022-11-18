@@ -242,6 +242,8 @@ impl IsInitialized for ProposalV2 {
     }
 }
 
+struct SucceededOptionsData(u64, u16);
+
 impl ProposalV2 {
     /// Checks if Signatories can be edited (added or removed) for the Proposal in the given state
     pub fn assert_can_edit_signatories(&self) -> Result<(), ProgramError> {
@@ -418,27 +420,15 @@ impl ProposalV2 {
         Ok(())
     }
 
-    /// Resolves final proposal state after vote ends
-    /// It inspects all proposals options and resolves their final vote results
-    fn resolve_final_vote_state(
+    fn resolve_min_vote_threshold_options(
         &mut self,
-        max_vote_weight: u64,
-        vote_threshold: &VoteThreshold,
-    ) -> Result<ProposalState, ProgramError> {
-        // Get the min vote weight required for options to pass
-        let min_vote_threshold_weight =
-            get_min_vote_threshold_weight(vote_threshold, max_vote_weight).unwrap();
-
-        // If the proposal has a reject option then any other option must beat it regardless of the configured min_vote_threshold_weight
-        let deny_vote_weight = self.deny_vote_weight.unwrap_or(0);
-
+        min_vote_threshold_weight: u64,
+        deny_vote_weight: u64,
+    ) -> SucceededOptionsData {
         let mut best_succeeded_option_weight = 0;
         let mut best_succeeded_option_count = 0u16;
 
         for option in self.options.iter_mut() {
-            // Any positive vote (Yes) must be equal or above the required min_vote_threshold_weight and higher than the reject option vote (No)
-            // The same number of positive (Yes) and rejecting (No) votes is a tie and resolved as Defeated
-            // In other words  +1 vote as a tie breaker is required to succeed for the positive option vote
             if option.vote_weight >= min_vote_threshold_weight
                 && option.vote_weight > deny_vote_weight
             {
@@ -459,6 +449,70 @@ impl ProposalV2 {
                 option.vote_result = OptionVoteResult::Defeated;
             }
         }
+        SucceededOptionsData(best_succeeded_option_weight, best_succeeded_option_count)
+    }
+
+    /// Resolves final proposal state after vote ends
+    /// It inspects all proposals options and resolves their final vote results
+    fn resolve_final_vote_state(
+        &mut self,
+        max_vote_weight: u64,
+        vote_threshold: &VoteThreshold,
+    ) -> Result<ProposalState, ProgramError> {
+        // Get the min vote weight required for options to pass
+        let min_vote_threshold_weight =
+            get_min_vote_threshold_weight(vote_threshold, max_vote_weight).unwrap();
+
+        // If the proposal has a reject option then any other option must beat it regardless of the configured min_vote_threshold_weight
+        let deny_vote_weight = self.deny_vote_weight.unwrap_or(0);
+
+        let SucceededOptionsData(mut best_succeeded_option_weight, best_succeeded_option_count) =
+            match vote_threshold {
+                VoteThreshold::YesVotePercentage(_) => self.resolve_min_vote_threshold_options(
+                    min_vote_threshold_weight,
+                    deny_vote_weight,
+                ),
+                VoteThreshold::QuorumPercentage(_) => {
+                    // if passing quorum then 50% of votes is needed to succeed
+                    let all_votes_absolute_weight = self.resolve_all_votes_weight();
+                    if all_votes_absolute_weight >= min_vote_threshold_weight {
+                        let half_of_max_vote_weight = get_min_vote_threshold_weight(
+                            &VoteThreshold::QuorumPercentage(50),
+                            max_vote_weight,
+                        )
+                        .unwrap();
+                        self.resolve_min_vote_threshold_options(
+                            half_of_max_vote_weight,
+                            deny_vote_weight,
+                        )
+                    } else {
+                        self.options
+                            .iter_mut()
+                            .for_each(|o| o.vote_result = OptionVoteResult::Defeated);
+                        SucceededOptionsData(0, 0)
+                    }
+                }
+                VoteThreshold::QuorumPercentageAllSucceed(_) => {
+                    // if passing quorum then all options succeeds
+                    let all_votes_absolute_weight = self.resolve_all_votes_weight();
+                    if all_votes_absolute_weight >= min_vote_threshold_weight {
+                        self.options
+                            .iter_mut()
+                            .for_each(|o| o.vote_result = OptionVoteResult::Succeeded);
+                        SucceededOptionsData(all_votes_absolute_weight, self.options.len() as u16)
+                    } else {
+                        self.options
+                            .iter_mut()
+                            .for_each(|o| o.vote_result = OptionVoteResult::Defeated);
+                        SucceededOptionsData(0, 0)
+                    }
+                }
+                _ => {
+                    // this should not happen
+                    // what are the supported vote thresholds have been handled before
+                    return Err(ProgramError::InvalidArgument);
+                }
+            };
 
         let mut final_state = if best_succeeded_option_count == 0 {
             // If none of the individual options succeeded then the proposal as a whole is defeated
@@ -607,6 +661,11 @@ impl ProposalV2 {
         Ok(max_voter_weight)
     }
 
+    /// Makes sum of weights of all votes that have been voted at proposal until now
+    pub fn resolve_all_votes_weight(&self) -> u64 {
+        self.options.iter().map(|o| o.vote_weight).sum()
+    }
+
     /// Checks if vote can be tipped and automatically transitioned to Succeeded or Defeated state
     /// If the conditions are met the state is updated accordingly
     pub fn try_tip_vote(
@@ -646,8 +705,30 @@ impl ProposalV2 {
         vote_threshold: &VoteThreshold,
         vote_kind: &VoteKind,
     ) -> Option<ProposalState> {
-        let min_vote_threshold_weight =
+        let mut min_vote_threshold_weight =
             get_min_vote_threshold_weight(vote_threshold, max_voter_weight).unwrap();
+
+        match vote_threshold {
+            VoteThreshold::QuorumPercentage(_) => {
+                let all_votes_weight = self.resolve_all_votes_weight();
+                // if all votes weight exceeds the quorum size then 50% is required to pass
+                if all_votes_weight >= min_vote_threshold_weight {
+                    min_vote_threshold_weight = get_min_vote_threshold_weight(
+                        &VoteThreshold::QuorumPercentage(50),
+                        max_voter_weight,
+                    )
+                    .unwrap();
+                }
+            }
+            VoteThreshold::QuorumPercentageAllSucceed(_) => {
+                // if all votes weight exceeds the quorum size then any vote is considered successful
+                let all_votes_weight = self.resolve_all_votes_weight();
+                if all_votes_weight >= min_vote_threshold_weight {
+                    min_vote_threshold_weight = 0;
+                }
+            }
+            _ => {}
+        }
 
         match vote_kind {
             VoteKind::Electorate => self.try_get_tipped_electorate_vote_state(
@@ -993,6 +1074,12 @@ fn get_min_vote_threshold_weight(
     let yes_vote_threshold_percentage = match vote_threshold {
         VoteThreshold::YesVotePercentage(yes_vote_threshold_percentage) => {
             *yes_vote_threshold_percentage
+        }
+        VoteThreshold::QuorumPercentage(quorum_threshold_percentage) => {
+            *quorum_threshold_percentage
+        }
+        VoteThreshold::QuorumPercentageAllSucceed(quorum_threshold_percentage_all_succeed) => {
+            *quorum_threshold_percentage_all_succeed
         }
         _ => {
             return Err(GovernanceError::VoteThresholdTypeNotSupported.into());
