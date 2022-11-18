@@ -500,8 +500,15 @@ pub fn assert_is_valid_vote_threshold(vote_threshold: &VoteThreshold) -> Result<
                 return Err(GovernanceError::InvalidVoteThresholdPercentage.into());
             }
         }
-        VoteThreshold::QuorumPercentage(_) => {
-            return Err(GovernanceError::VoteThresholdTypeNotSupported.into());
+        VoteThreshold::QuorumPercentage(quorum_threshold_percentage) => {
+            if !(0..=100).contains(&quorum_threshold_percentage) {
+                return Err(GovernanceError::InvalidVoteThresholdPercentage.into());
+            }
+        }
+        VoteThreshold::QuorumPercentageAllSucceed(quorum_threshold_percentage_all_succesful) => {
+            if !(0..=100).contains(&quorum_threshold_percentage_all_succesful) {
+                return Err(GovernanceError::InvalidVoteThresholdPercentage.into());
+            }
         }
         VoteThreshold::Disabled => {}
     }
@@ -777,5 +784,49 @@ mod test {
 
         // Assert
         assert_eq!(err, GovernanceError::InvalidVoteThresholdPercentage.into());
+    }
+
+    #[test]
+    fn test_assert_config_quorum_vote_threshold() {
+        // Arrange
+        let governance_config = GovernanceConfig {
+            community_vote_threshold: VoteThreshold::QuorumPercentage(0),
+            council_vote_threshold: VoteThreshold::QuorumPercentage(100),
+            council_veto_vote_threshold: VoteThreshold::QuorumPercentage(1),
+            community_veto_vote_threshold: VoteThreshold::QuorumPercentage(99),
+            min_community_weight_to_create_proposal: 1,
+            min_transaction_hold_up_time: 1,
+            voting_base_time: 1,
+            voting_cool_off_time: 1,
+            council_vote_tipping: VoteTipping::Strict,
+            min_council_weight_to_create_proposal: 1,
+            community_vote_tipping: VoteTipping::Strict,
+            reserved: 0,
+        };
+
+        // Act
+        assert_is_valid_governance_config(&governance_config).unwrap();
+    }
+
+    #[test]
+    fn test_assert_config_quorum_all_succeed_vote_threshold() {
+        // Arrange
+        let governance_config = GovernanceConfig {
+            community_vote_threshold: VoteThreshold::QuorumPercentageAllSucceed(0),
+            council_vote_threshold: VoteThreshold::QuorumPercentageAllSucceed(100),
+            council_veto_vote_threshold: VoteThreshold::QuorumPercentageAllSucceed(1),
+            community_veto_vote_threshold: VoteThreshold::QuorumPercentageAllSucceed(99),
+            min_community_weight_to_create_proposal: 1,
+            min_transaction_hold_up_time: 1,
+            voting_base_time: 1,
+            voting_cool_off_time: 1,
+            council_vote_tipping: VoteTipping::Strict,
+            min_council_weight_to_create_proposal: 1,
+            community_vote_tipping: VoteTipping::Strict,
+            reserved: 0,
+        };
+
+        // Act
+        assert_is_valid_governance_config(&governance_config).unwrap();
     }
 }
