@@ -454,6 +454,10 @@ pub enum GovernanceError {
     /// A proposal needs to have at least one option to be considered correct for voting
     #[error("At least one option is required to be inserted to proposal for voting")]
     AtLeastOneOptionInProposalRequired, // 609
+
+    /// Invalid State: Proposal hasn't been finalized
+    #[error("Invalid State: Proposal hasn't been finalized")]
+    InvalidStateNotFinalized, // 610
 }
 
 impl PrintProgramError for GovernanceError {

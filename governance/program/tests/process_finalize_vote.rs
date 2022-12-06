@@ -9,7 +9,7 @@ use spl_governance::{
     error::GovernanceError,
     state::{
         enums::{ProposalState, VoteThreshold},
-        proposal::{MultiChoiceType, VoteType, OptionVoteResult},
+        proposal::{MultiChoiceType, OptionVoteResult, VoteType},
         vote_record::{Vote, VoteChoice},
     },
 };
