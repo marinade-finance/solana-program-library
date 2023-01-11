@@ -90,7 +90,7 @@ pub fn process_instruction(
     {
         // Do not dump instruction data into logs
         msg!(
-            "GOVERNANCE-INSTRUCTION: InsertInstruction {{option_index: {:?}, index: {:?}, hold_up_time: {:?} }}",
+            "GOVERNANCE-INSTRUCTION: InsertTransaction {{option_index: {:?}, index: {:?}, hold_up_time: {:?} }}",
             option_index,
             index,
             hold_up_time

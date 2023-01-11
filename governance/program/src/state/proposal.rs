@@ -2598,7 +2598,7 @@ mod test {
         let vote = Vote::Approve(choices.clone());
 
         // Ensure
-        assert!(proposal.options.len() != choices.len());
+        assert_ne!(proposal.options.len(), choices.len());
 
         // Act
         let result = proposal.assert_valid_vote(&vote);
@@ -2740,6 +2740,7 @@ mod test {
         // Arrange
         let mut proposal = create_test_multi_option_proposal();
         proposal.vote_type = VoteType::MultiChoice {
+            choice_type: MultiChoiceType::Approval,
             max_voter_options: 3,
             max_winning_options: 3,
         };
@@ -3060,12 +3061,30 @@ mod test {
         };
 
         let options = vec!["option 1".to_string(), "option 2".to_string()];
+        let proposal_options = options
+            .clone()
+            .into_iter()
+            .map(|v| ProposalOption {
+                label: v,
+                transactions_next_index: 0,
+                vote_result: OptionVoteResult::None,
+                transactions_executed_count: 0,
+                transactions_count: 0,
+                vote_weight: 0,
+            })
+            .collect();
 
         // Act
-        let result = assert_valid_proposal_options(&options, &vote_type);
+        let result_create = assert_valid_proposal_options(&options);
+        let result_signoff =
+            assert_valid_proposal_options_on_signoff(&proposal_options, &vote_type);
 
         // Assert
-        assert_eq!(result, Err(GovernanceError::InvalidProposalOptions.into()));
+        assert_eq!(result_create, Ok(()));
+        assert_eq!(
+            result_signoff,
+            Err(GovernanceError::InvalidProposalOptions.into())
+        );
     }
 
     #[test]
@@ -3081,10 +3100,13 @@ mod test {
         let options = vec![];
 
         // Act
-        let result = assert_valid_proposal_options(&options, &vote_type);
+        let result = assert_valid_proposal_options_on_signoff(&options, &vote_type);
 
         // Assert
-        assert_eq!(result, Err(GovernanceError::InvalidProposalOptions.into()));
+        assert_eq!(
+            result,
+            Err(GovernanceError::AtLeastOneOptionInProposalRequired.into())
+        );
     }
 
     #[test]
@@ -3101,12 +3123,27 @@ mod test {
             "option 2".to_string(),
             "option 3".to_string(),
         ];
+        let proposal_options = options
+            .clone()
+            .into_iter()
+            .map(|v| ProposalOption {
+                label: v,
+                transactions_next_index: 0,
+                vote_result: OptionVoteResult::None,
+                transactions_executed_count: 0,
+                transactions_count: 0,
+                vote_weight: 0,
+            })
+            .collect();
 
         // Act
-        let result = assert_valid_proposal_options(&options, &vote_type);
+        let result_create = assert_valid_proposal_options(&options);
+        let result_signoff =
+            assert_valid_proposal_options_on_signoff(&proposal_options, &vote_type);
 
         // Assert
-        assert_eq!(result, Ok(()));
+        assert_eq!(result_create, Ok(()));
+        assert_eq!(result_signoff, Ok(()));
     }
 
     #[test]
@@ -3124,12 +3161,33 @@ mod test {
             "option 2".to_string(),
             "option 3".to_string(),
         ];
+        let proposal_options = options
+            .clone()
+            .into_iter()
+            .map(|v| ProposalOption {
+                label: v,
+                transactions_next_index: 0,
+                vote_result: OptionVoteResult::None,
+                transactions_executed_count: 0,
+                transactions_count: 0,
+                vote_weight: 0,
+            })
+            .collect();
 
         // Act
-        let result = assert_valid_proposal_options(&options, &vote_type);
+        let result_create = assert_valid_proposal_options(&options);
+        let result_signoff =
+            assert_valid_proposal_options_on_signoff(&proposal_options, &vote_type);
 
         // Assert
-        assert_eq!(result, Err(GovernanceError::InvalidProposalOptions.into()));
+        assert_eq!(
+            result_create,
+            Err(GovernanceError::InvalidProposalOptions.into())
+        );
+        assert_eq!(
+            result_signoff,
+            Err(GovernanceError::InvalidProposalOptions.into())
+        );
     }
 
     #[test]
@@ -3154,12 +3212,30 @@ mod test {
             "option 10".to_string(),
             "option 11".to_string(),
         ];
+        let proposal_options = options
+            .clone()
+            .into_iter()
+            .map(|v| ProposalOption {
+                label: v,
+                transactions_next_index: 0,
+                vote_result: OptionVoteResult::None,
+                transactions_executed_count: 0,
+                transactions_count: 0,
+                vote_weight: 0,
+            })
+            .collect();
 
         // Act
-        let result = assert_valid_proposal_options(&options, &vote_type);
+        let result_create = assert_valid_proposal_options(&options);
+        let result_signoff =
+            assert_valid_proposal_options_on_signoff(&proposal_options, &vote_type);
 
         // Assert
-        assert_eq!(result, Err(GovernanceError::InvalidProposalOptions.into()));
+        assert_eq!(result_create, Ok(()));
+        assert_eq!(
+            result_signoff,
+            Err(GovernanceError::InvalidProposalOptions.into())
+        );
     }
 
     #[test]
@@ -3172,12 +3248,30 @@ mod test {
         };
 
         let options = vec!["option 1".to_string(), "option 1".to_string()];
+        let proposal_options = options
+            .clone()
+            .into_iter()
+            .map(|v| ProposalOption {
+                label: v,
+                transactions_next_index: 0,
+                vote_result: OptionVoteResult::None,
+                transactions_executed_count: 0,
+                transactions_count: 0,
+                vote_weight: 0,
+            })
+            .collect();
 
         // Act
-        let result = assert_valid_proposal_options(&options, &vote_type);
+        let result_create = assert_valid_proposal_options(&options);
+        let result_signoff =
+            assert_valid_proposal_options_on_signoff(&proposal_options, &vote_type);
 
         // Assert
-        assert_eq!(result, Err(GovernanceError::InvalidProposalOptions.into()));
+        assert_eq!(result_create, Ok(()));
+        assert_eq!(
+            result_signoff,
+            Err(GovernanceError::InvalidProposalOptions.into())
+        );
     }
 
     #[test]

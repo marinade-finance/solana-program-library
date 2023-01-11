@@ -1800,11 +1800,15 @@ async fn test_vote_multi_choice_proposal_with_limiting_number_of_choices() {
         .await
         .unwrap();
 
-    let options_number: u8 = 201;
+    let options_number: u8 = 105;
+    let option_string_length = 50;
     let mut options: Vec<String> = Vec::new();
-    for i in 1..options_number + 1 {
-        options.push(format!("option {}", i));
+    for i in 1..=options_number {
+        // options.push(format!("{:05}", i));
+        // options.push("1".to_string());
+        options.push(format!("{:05}{}", i, "1".repeat(option_string_length - 5)));
     }
+    println!("option 0 (format example): {}", options[0]); // cargo test-sbf -- --nocapture
     let mut proposal_cookie = governance_test
         .with_multi_option_proposal(
             &token_owner_record_cookie1,
@@ -1812,7 +1816,7 @@ async fn test_vote_multi_choice_proposal_with_limiting_number_of_choices() {
             options,
             true,
             VoteType::MultiChoice {
-                choice_type: MultiChoiceType::Approval,
+                choice_type: MultiChoiceType::Weighted,
                 max_winning_options: options_number,
                 max_voter_options: options_number,
             },

@@ -5,6 +5,7 @@ mod program_test;
 use solana_program_test::tokio;
 
 use program_test::*;
+use spl_governance::state::proposal::MultiChoiceType;
 use spl_governance::{
     error::GovernanceError,
     state::{
@@ -512,7 +513,7 @@ async fn test_finalize_vote_with_cannot_finalize_during_cool_off_time_error() {
 }
 
 #[tokio::test]
-async fn test_finalize_vote_quorum_suceed_all_threshold_to_succeeded() {
+async fn test_finalize_vote_quorum_succeed_all_threshold_to_succeeded() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
@@ -554,6 +555,7 @@ async fn test_finalize_vote_quorum_suceed_all_threshold_to_succeeded() {
             ],
             false,
             VoteType::MultiChoice {
+                choice_type: MultiChoiceType::Weighted,
                 max_winning_options: 3,
                 max_voter_options: 3,
             },
@@ -569,11 +571,11 @@ async fn test_finalize_vote_quorum_suceed_all_threshold_to_succeeded() {
     let vote = Vote::Approve(vec![
         VoteChoice {
             rank: 0,
-            weight_percentage: 100,
+            weight_percentage: 1,
         },
         VoteChoice {
             rank: 0,
-            weight_percentage: 0,
+            weight_percentage: 99,
         },
         VoteChoice {
             rank: 0,
@@ -616,7 +618,7 @@ async fn test_finalize_vote_quorum_suceed_all_threshold_to_succeeded() {
     // the transition move from Succeeded to Completed happens as deny vote is not permitted
     assert_eq!(proposal_account.state, ProposalState::Completed);
     assert_eq!(Some(200), proposal_account.max_vote_weight);
-    // as the quorum_all_suceeed makes all options to pass when quorum is exceeded
+    // as the quorum_all_succeeed makes all options to pass when quorum is exceeded
     for option in proposal_account.options {
         assert_eq!(OptionVoteResult::Succeeded, option.vote_result);
     }
