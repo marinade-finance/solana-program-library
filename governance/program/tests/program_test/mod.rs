@@ -2176,7 +2176,11 @@ impl GovernanceProgramTest {
 
         self.bench
             .process_transaction(
-                &[add_signatory_ix],
+                &[
+                    ComputeBudgetInstruction::set_compute_unit_limit(1_000_000u32),
+                    ComputeBudgetInstruction::set_compute_unit_price(1u64),
+                    add_signatory_ix,
+                ],
                 Some(&[&token_owner_record_cookie.token_owner]),
             )
             .await?;
@@ -2311,7 +2315,14 @@ impl GovernanceProgramTest {
         let signers = signers_override.unwrap_or(default_signers);
 
         self.bench
-            .process_transaction(&[sign_off_proposal_ix], Some(signers))
+            .process_transaction(
+                &[
+                    ComputeBudgetInstruction::set_compute_unit_limit(1_000_000u32),
+                    ComputeBudgetInstruction::set_compute_unit_price(1u64),
+                    sign_off_proposal_ix,
+                ],
+                Some(signers),
+            )
             .await?;
 
         Ok(())
@@ -2821,7 +2832,11 @@ impl GovernanceProgramTest {
 
         self.bench
             .process_transaction(
-                &[insert_transaction_ix],
+                &[
+                    ComputeBudgetInstruction::set_compute_unit_limit(1_000_000u32),
+                    ComputeBudgetInstruction::set_compute_unit_price(1u64),
+                    insert_transaction_ix,
+                ],
                 Some(&[&token_owner_record_cookie.token_owner]),
             )
             .await?;
