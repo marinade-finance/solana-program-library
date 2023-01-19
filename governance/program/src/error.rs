@@ -470,6 +470,18 @@ pub enum GovernanceError {
     ///Invalid state for proposal state transition to Completed
     #[error("Invalid state for proposal state transition to Completed")]
     InvalidStateForCompleteProposal, // 613
+
+    /// Proposal data is not available for size calculation
+    #[error("Size of proposal data cannot be calculated")]
+    CannotCalculateSizeOfProposalData, // 614
+
+    /// Cannot fit new options data to proposal account
+    #[error("New options data size exceeds allocated proposal account space")]
+    InsertProposalOptionsDataExceedsAccountSize, // 615
+
+    /// A proposal needs to have at least one option to be considered correct for voting
+    #[error("At least one option is required to be inserted to proposal for voting")]
+    AtLeastOneOptionInProposalRequired, // 616
 }
 
 impl PrintProgramError for GovernanceError {
