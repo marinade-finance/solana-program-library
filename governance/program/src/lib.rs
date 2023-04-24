@@ -10,6 +10,19 @@ pub mod processor;
 pub mod state;
 pub mod tools;
 
+/// solana-security-txt for SPL Governance program deployed by Marinade.finance
+use solana_security_txt::security_txt;
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "SPL Governance deployed by Marinade.finance",
+    project_url: "https://github.com/solana-labs/solana-program-library/tree/master/governance",
+    contacts: "link:https://docs.marinade.finance/marinade-dao,link:https://discord.com/invite/6EtUf4Euu6",
+    policy: "https://docs.marinade.finance/marinade-protocol/security",
+    preferred_languages: "en",
+    source_code: "https://github.com/marinade-finance/solana-program-library/tree/governance-v3.1.0-marinade",
+    auditors: "https://github.com/solana-labs/solana-program-library/tree/master/governance#audit"
+}
+
 // Export current sdk types for downstream users building with a different sdk version
 pub use solana_program;
 

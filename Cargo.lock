@@ -5492,6 +5492,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-security-txt"
+version = "1.1.0"
+source = "git+https://github.com/ochaloup/solana-security-txt?rev=44719333adc6136b07d40488e0a86d3698606f55#44719333adc6136b07d40488e0a86d3698606f55"
+
+[[package]]
 name = "solana-send-transaction-service"
 version = "1.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5962,6 +5967,7 @@ dependencies = [
  "solana-program",
  "solana-program-test",
  "solana-sdk",
+ "solana-security-txt",
  "spl-governance-addin-api",
  "spl-governance-addin-mock",
  "spl-governance-test-sdk",

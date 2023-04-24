@@ -24,6 +24,7 @@ spl-token = { version = "3.5", path = "../../token/program", features = [ "no-en
 spl-governance-tools= { version = "0.1.3", path ="../tools"}
 spl-governance-addin-api= { version = "0.1.3", path ="../addin-api"}
 thiserror = "1.0"
+solana-security-txt = { git = "https://github.com/ochaloup/solana-security-txt", rev = "44719333adc6136b07d40488e0a86d3698606f55" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
