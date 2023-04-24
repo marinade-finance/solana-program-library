@@ -202,3 +202,23 @@ the DAO until the token is distributed.
 
 The repository [README](https://github.com/solana-labs/solana-program-library#audits)
 contains information about program audits.
+
+## Verifiable builds
+
+```shell
+# get source code
+git clone https://github.com/marinade-finance/solana-program-library -b governance-v3.1.1-marinade
+cd solana-program-library/governance/program
+
+# use anchor 0.27.0
+avm use 0.27.0
+
+# build verifiable
+anchor build --verifiable
+
+# deploy the program
+solana -um -k ~/.config/solana/mainnet.json program write-buffer ../../target/verifiable/spl_governance.so
+
+# verify the build
+anchor --provider.cluster mainnet verify -p spl_governance <PROGRAM_ID>
+```
